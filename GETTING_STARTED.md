@@ -37,8 +37,8 @@ and copy its credentials.
 ## Step 2 — Get the code
 
 ```bash
-git clone <your-repo-url> freshbooks-mcp
-cd freshbooks-mcp
+git clone https://github.com/SantiaGoMode/freshbooks-timesheet-mcp.git
+cd freshbooks-timesheet-mcp
 cp .env.example .env          # non-secret settings; safe to leave as defaults
 ```
 
