@@ -5,6 +5,8 @@
 tokens*
 *.key
 *.pem
+secrets/
+secret.key
 
 # --- Python ---
 __pycache__/

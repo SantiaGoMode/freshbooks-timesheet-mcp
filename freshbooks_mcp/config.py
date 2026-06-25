@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -35,6 +36,20 @@ def _get_opt_int(name: str) -> int | None:
     return int(raw)
 
 
+def _file_or_env(name: str, default: str = "") -> str:
+    """Resolve a secret, preferring a mounted file (Docker/K8s secret) over env.
+
+    If ``<NAME>_FILE`` is set, its file contents are used (e.g.
+    ``FRESHBOOKS_TOKEN_KEY_FILE=/run/secrets/fb_token_key``); otherwise
+    ``<NAME>`` is read from the environment. The file form keeps the value out
+    of the container env and ``docker inspect``.
+    """
+    path = os.getenv(f"{name}_FILE")
+    if path:
+        return Path(path).expanduser().read_text().strip()
+    return os.getenv(name, default)
+
+
 @dataclass
 class Config:
     client_id: str
@@ -53,8 +68,8 @@ class Config:
     @classmethod
     def load(cls) -> "Config":
         return cls(
-            client_id=os.getenv("FRESHBOOKS_CLIENT_ID", ""),
-            client_secret=os.getenv("FRESHBOOKS_CLIENT_SECRET", ""),
+            client_id=_file_or_env("FRESHBOOKS_CLIENT_ID"),
+            client_secret=_file_or_env("FRESHBOOKS_CLIENT_SECRET"),
             redirect_uri=os.getenv(
                 "FRESHBOOKS_REDIRECT_URI", "https://localhost/callback"
             ),
@@ -62,7 +77,7 @@ class Config:
             identity_id=_get_opt_int("FRESHBOOKS_IDENTITY_ID"),
             token_backend=os.getenv("FRESHBOOKS_TOKEN_BACKEND", "keyring").lower(),
             token_path=os.getenv("FRESHBOOKS_TOKEN_PATH") or None,
-            token_key=os.getenv("FRESHBOOKS_TOKEN_KEY") or None,
+            token_key=_file_or_env("FRESHBOOKS_TOKEN_KEY") or None,
             timezone=os.getenv("TZ", "UTC"),
             default_daily_hours=float(os.getenv("DEFAULT_DAILY_HOURS", "8")),
             default_start_time=os.getenv("DEFAULT_START_TIME", "09:00"),

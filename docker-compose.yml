@@ -1,0 +1,51 @@
+# Runs the MCP server with the encrypted-file token backend.
+#   - the token SET persists in the `fb-tokens` volume (the refresh token
+#     rotates and MUST survive restarts — it can't be a read-only secret)
+#   - the Fernet key AND the FreshBooks client_id/secret are delivered as
+#     Docker secrets (mounted at /run/secrets, tmpfs — not in the image,
+#     the container env, or `docker inspect`)
+#   - .env carries only non-secret settings (TZ, behavior)
+#
+# Setup — create the three secret files (gitignored under secrets/):
+#   mkdir -p secrets
+#   printf %s 'YOUR_CLIENT_ID'     > secrets/fb_client_id
+#   printf %s 'YOUR_CLIENT_SECRET' > secrets/fb_client_secret
+#   python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())" > secrets/fb_token_key
+#
+# Test:
+#   docker compose build
+#   docker compose run --rm app freshbooks-mcp-auth      # interactive: URL -> paste code -> writes tokens.enc
+#   docker compose run --rm app python scripts/smoke.py  # read-only check
+
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    image: freshbooks-mcp
+    env_file: .env
+    environment:
+      FRESHBOOKS_TOKEN_BACKEND: file
+      FRESHBOOKS_TOKEN_PATH: /data/tokens.enc
+      FRESHBOOKS_TOKEN_KEY_FILE: /run/secrets/fb_token_key
+      FRESHBOOKS_CLIENT_ID_FILE: /run/secrets/fb_client_id
+      FRESHBOOKS_CLIENT_SECRET_FILE: /run/secrets/fb_client_secret
+    volumes:
+      - fb-tokens:/data
+    secrets:
+      - fb_token_key
+      - fb_client_id
+      - fb_client_secret
+    stdin_open: true   # MCP speaks stdio
+    tty: false
+
+volumes:
+  fb-tokens:
+
+secrets:
+  fb_token_key:
+    file: ./secrets/fb_token_key
+  fb_client_id:
+    file: ./secrets/fb_client_id
+  fb_client_secret:
+    file: ./secrets/fb_client_secret

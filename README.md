@@ -9,6 +9,10 @@ project, PTO Friday"* — it discovers your projects, confirms which one, and
 writes the entries. Or *"which days am I missing this month?"* — it reports the
 gaps, never flagging days that haven't happened yet.
 
+> **👉 New here? Start with [GETTING_STARTED.md](GETTING_STARTED.md)** — a
+> ~10-minute step-by-step setup (creating the FreshBooks app, secrets, Docker,
+> first auth). This README is the reference for tools, config, and internals.
+
 ---
 
 ## Features
@@ -87,25 +91,19 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 ## Authentication (one-time)
 
-OAuth is a two-step, non-interactive-friendly flow:
-
 ```bash
-# 1. Print the authorization URL
 freshbooks-mcp-auth
 ```
 
-Open the printed URL, authorize the app. You'll be redirected to
-`https://localhost/callback?code=...&state=...` — **the page won't load, that's
-fine**. Copy the `code` value from the address bar, then:
+It prints an authorization URL — open it and approve the app. You'll be
+redirected to `https://localhost/callback?code=...&state=...` (**the page won't
+load, that's fine**). Paste the `code` value at the prompt and the tokens are
+stored. The code is single-use and expires within minutes, so paste it promptly;
+if it fails with `invalid_grant`, just run the command again for a fresh URL.
 
-```bash
-# 2. Exchange the code for tokens (stored in your OS keychain)
-freshbooks-mcp-auth <code>
-```
-
-The authorization code is single-use and expires within minutes, so do both
-steps back-to-back. If step 2 fails with `invalid_grant`, just re-run step 1
-for a fresh code.
+> **Non-interactive shells** (CI, or anything without a TTY): the command can't
+> prompt, so it prints the URL and exits — pass the code as an argument instead:
+> `freshbooks-mcp-auth <code>`.
 
 ### Verify (read-only)
 
@@ -117,6 +115,57 @@ Exercises `/me` discovery, `list_projects`, and `check_timesheet` for the
 current week — without writing anything.
 
 ---
+
+## Docker
+
+Containers can't reach the OS keychain, so the image uses the **encrypted-file
+backend**:
+
+- The **token set** persists in a named volume — the refresh token rotates and
+  must survive restarts, so it can't live in a read-only secret.
+- The **Fernet key** and the **FreshBooks `client_id`/`secret`** are delivered as
+  **Docker secrets** (`*_FILE` → `/run/secrets/*`, tmpfs), keeping them out of the
+  image, the container env, and `docker inspect`.
+- `.env` carries only non-secret settings (TZ, behavior).
+
+```bash
+cp .env.example .env          # non-secret settings only
+
+# create the three secret files (gitignored under secrets/):
+mkdir -p secrets
+printf %s 'YOUR_CLIENT_ID'     > secrets/fb_client_id
+printf %s 'YOUR_CLIENT_SECRET' > secrets/fb_client_secret
+python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())" > secrets/fb_token_key
+
+docker compose build
+
+# one-time auth — interactive: prints the URL, prompts for the code,
+# and writes the encrypted token to the volume (all in one step)
+docker compose run --rm app freshbooks-mcp-auth
+
+# read-only verification
+docker compose run --rm app python scripts/smoke.py
+```
+
+Run the test suite in Docker:
+
+```bash
+docker build --target test -t freshbooks-mcp:test . && docker run --rm freshbooks-mcp:test
+```
+
+Register the **containerized** server with an MCP client by launching it via
+`docker`:
+
+```json
+{
+  "mcpServers": {
+    "freshbooks": {
+      "command": "docker",
+      "args": ["compose", "-f", "/abs/path/docker-compose.yml", "run", "--rm", "-T", "app"]
+    }
+  }
+}
+```
 
 ## Register with an MCP client
 
