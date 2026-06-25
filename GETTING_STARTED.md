@@ -25,7 +25,7 @@ and copy its credentials.
    ```
    This must match character-for-character or the login step will be rejected.
 5. If prompted for scopes/permissions, grant access to **time tracking** and
-   **your user/identity** (these cover everything the MCP does).
+   **your user/identity** (these cover everything the MCP does). user:profile:read, user:time_entries:read, user:time_entries:write, user:projects:read 
 6. Save, then copy the generated **Client ID** and **Client Secret** — you'll
    paste them in Step 3.
 
