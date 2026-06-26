@@ -1,11 +1,11 @@
-import time
+
+from datetime import UTC
 
 import httpx
 import pytest
 
 from freshbooks_mcp.config import Config
 from freshbooks_mcp.freshbooks_client import FreshBooksClient, FreshBooksError
-from freshbooks_mcp.models import TokenSet
 
 
 def make_config(**over):
@@ -143,7 +143,7 @@ def test_list_time_entries_pagination():
 
 
 def test_create_time_entry_body():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     captured = {}
 
@@ -156,7 +156,7 @@ def test_create_time_entry_body():
         }})
 
     client, _ = make_client(handler, business_id=999, identity_id=555)
-    started = datetime(2026, 6, 1, 13, 0, tzinfo=timezone.utc)
+    started = datetime(2026, 6, 1, 13, 0, tzinfo=UTC)
     entry = client.create_time_entry(started, 28800, project_id=7, note="work")
 
     te = captured["body"]["time_entry"]

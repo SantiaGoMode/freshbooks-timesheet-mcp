@@ -35,6 +35,10 @@ ENV/
 htmlcov/
 .tox/
 
+# --- Claude Desktop extension build artifacts ---
+*.mcpb
+*.dxt
+
 # --- Tooling / editor ---
 .claude/
 .idea/

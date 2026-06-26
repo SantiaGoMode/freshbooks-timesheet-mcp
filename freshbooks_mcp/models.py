@@ -32,7 +32,7 @@ class TokenSet:
     SKEW: int = field(default=60, repr=False)
 
     @classmethod
-    def from_token_response(cls, payload: dict) -> "TokenSet":
+    def from_token_response(cls, payload: dict) -> TokenSet:
         """Build a TokenSet from a FreshBooks /auth/oauth/token response."""
         created = payload.get("created_at")
         expires_in = int(payload.get("expires_in", 43200))
@@ -56,7 +56,7 @@ class TokenSet:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "TokenSet":
+    def from_dict(cls, data: dict) -> TokenSet:
         return cls(
             access_token=data["access_token"],
             refresh_token=data["refresh_token"],
@@ -95,7 +95,7 @@ class TimeEntry:
         return self.started_at.date()
 
     @classmethod
-    def from_api(cls, data: dict) -> "TimeEntry":
+    def from_api(cls, data: dict) -> TimeEntry:
         started = data.get("started_at")
         started_dt = (
             datetime.fromisoformat(started.replace("Z", "+00:00"))
@@ -124,7 +124,7 @@ class Project:
     client_id: int | None = None
 
     @classmethod
-    def from_api(cls, data: dict) -> "Project":
+    def from_api(cls, data: dict) -> Project:
         return cls(
             id=data["id"],
             title=data.get("title", ""),

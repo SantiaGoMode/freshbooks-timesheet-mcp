@@ -11,13 +11,14 @@ require an explicit ``project_id`` and clamp/limit inputs.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+from . import transformers as T
 from .config import Config
 from .freshbooks_client import FreshBooksClient
-from . import transformers as T
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,53 @@ def _parse_date(value: str | None, config: Config) -> date:
         return date.fromisoformat(value)
     except ValueError as exc:
         raise ValueError(f"Invalid date {value!r}; use YYYY-MM-DD.") from exc
+
+
+# -- auth handlers ------------------------------------------------------------
+
+def handle_start_auth(auth, config: Config) -> dict:
+    """Return the authorize URL to begin the one-time OAuth flow."""
+    config.require_oauth()
+    url, state = auth.authorize_url()
+    return {
+        "authorize_url": url,
+        "state": state,
+        "instructions": (
+            "Open authorize_url in a browser and approve the app. You'll be "
+            "redirected to the redirect URI with ?code=...&state=... (the page "
+            "won't load — that's fine). Copy the `code` value and call "
+            "finish_auth with it. The code expires within minutes."
+        ),
+    }
+
+
+def handle_finish_auth(auth, config: Config, code: str) -> dict:
+    """Exchange the authorization `code` for tokens and store them."""
+    code = (code or "").strip()
+    if not code:
+        raise ValueError("code is required — the `code` value from the redirect URL.")
+    auth.bootstrap_from_code(code)
+    return {
+        "status": "ok",
+        "message": "Authorized. Tokens stored securely — you can now check or log time.",
+    }
+
+
+def handle_auth_debug(auth, config: Config) -> dict:
+    """Fingerprint the loaded credentials for troubleshooting (no secrets)."""
+
+    def fp(v: str) -> str:
+        return hashlib.sha256(v.encode()).hexdigest()[:12] if v else "<empty>"
+
+    return {
+        "client_id_len": len(config.client_id),
+        "client_id_fp": fp(config.client_id),
+        "client_secret_len": len(config.client_secret),
+        "client_secret_fp": fp(config.client_secret),
+        "redirect_uri": config.redirect_uri,
+        "token_backend": config.token_backend,
+        "token_stored": auth.has_stored_tokens(),
+    }
 
 
 # -- handlers -----------------------------------------------------------------
@@ -209,10 +257,45 @@ def _summarize_log(created, skipped, errors, hours) -> str:
 
 # -- MCP wiring ---------------------------------------------------------------
 
-def build_server(config: Config, client: FreshBooksClient):
+def build_server(config: Config, client: FreshBooksClient, auth):
     from mcp.server.fastmcp import FastMCP
 
     mcp = FastMCP("freshbooks-timesheet")
+
+    @mcp.tool()
+    def start_auth() -> dict:
+        """Begin FreshBooks authorization (one-time, run before any other tool).
+
+        Returns an `authorize_url` the user must open and approve. FreshBooks
+        then redirects to the configured redirect URI with a `code` query
+        parameter — the page itself won't load, that's expected. The user copies
+        that `code` value and you pass it to `finish_auth`. The code is
+        single-use and expires within minutes, so call finish_auth promptly.
+        """
+        return handle_start_auth(auth, config)
+
+    @mcp.tool()
+    def finish_auth(code: str) -> dict:
+        """Complete authorization with the `code` from the start_auth redirect.
+
+        `code` is the value of the `code` query parameter in the redirect URL.
+        On success the tokens are stored securely (OS keychain) and the time
+        tools become usable. If it fails with an expired/invalid code, call
+        start_auth again for a fresh URL.
+        """
+        return handle_finish_auth(auth, config, code)
+
+    @mcp.tool()
+    def auth_debug() -> dict:
+        """Diagnostic: fingerprint the credentials the server actually loaded.
+
+        Returns lengths and short SHA-256 prefixes (never the values) of the
+        client_id / client_secret in effect, plus the redirect_uri, token
+        backend, and whether a token is stored. Use this to confirm the
+        connector passed the right credentials when authorization fails with
+        invalid_client — compare the fingerprints to the known-good ones.
+        """
+        return handle_auth_debug(auth, config)
 
     @mcp.tool()
     def check_timesheet(
@@ -279,7 +362,7 @@ def main() -> None:  # pragma: no cover - process entrypoint
     config = Config.load()
     auth = AuthManager(config)
     client = FreshBooksClient(config, auth)
-    server = build_server(config, client)
+    server = build_server(config, client, auth)
     server.run()
 
 

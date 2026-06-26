@@ -1,0 +1,83 @@
+{
+  "manifest_version": "0.4",
+  "name": "freshbooks-timesheet",
+  "display_name": "FreshBooks Timesheet",
+  "version": "0.1.1",
+  "description": "Check and log timesheets in FreshBooks from your AI agent.",
+  "long_description": "Ask your agent to check which days you're missing time on, or to log hours across a week/month against a project — with PTO exclusion, a dry-run preview, and skipping of days already logged. First run: call the start_auth tool, approve in the browser, and paste the code into finish_auth. Credentials are stored by Claude Desktop in the OS keychain; rotating OAuth refresh tokens are handled automatically.",
+  "author": { "name": "Cris Santiago" },
+  "server": {
+    "type": "uv",
+    "entry_point": "server/freshbooks_mcp/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}/server", "freshbooks-mcp"],
+      "env": {
+        "UV_PROJECT_ENVIRONMENT": "${HOME}/.freshbooks-timesheet-mcp/venv-0.1.1",
+        "FRESHBOOKS_CLIENT_ID": "${user_config.client_id}",
+        "FRESHBOOKS_CLIENT_SECRET": "${user_config.client_secret}",
+        "FRESHBOOKS_REDIRECT_URI": "${user_config.redirect_uri}",
+        "FRESHBOOKS_TOKEN_BACKEND": "keyring",
+        "TZ": "${user_config.tz}",
+        "DEFAULT_DAILY_HOURS": "${user_config.daily_hours}",
+        "MAX_LOG_DAYS": "${user_config.max_log_days}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "start_auth", "description": "Begin one-time FreshBooks authorization; returns a URL to approve." },
+    { "name": "finish_auth", "description": "Complete authorization with the code from the redirect URL." },
+    { "name": "auth_debug", "description": "Report non-secret fingerprints of the loaded credentials for troubleshooting." },
+    { "name": "check_timesheet", "description": "Report logged/missing/under-logged days for a day, week, or month." },
+    { "name": "log_time", "description": "Log hours per weekday against a project, with PTO exclusion and dry-run." },
+    { "name": "list_projects", "description": "List projects to choose which to log against." },
+    { "name": "list_clients", "description": "List clients (needed for billable time)." },
+    { "name": "list_services", "description": "List services (optional billing rate)." }
+  ],
+  "user_config": {
+    "client_id": {
+      "type": "string",
+      "title": "FreshBooks Client ID",
+      "description": "From my.freshbooks.com -> Developer -> your app.",
+      "sensitive": true,
+      "required": true
+    },
+    "client_secret": {
+      "type": "string",
+      "title": "FreshBooks Client Secret",
+      "description": "From the same FreshBooks app.",
+      "sensitive": true,
+      "required": true
+    },
+    "redirect_uri": {
+      "type": "string",
+      "title": "Redirect URI",
+      "description": "Must match the redirect URI registered in your FreshBooks app exactly (FreshBooks requires HTTPS).",
+      "default": "https://localhost/callback",
+      "required": true
+    },
+    "tz": {
+      "type": "string",
+      "title": "Timezone",
+      "description": "IANA timezone for day/week/month boundaries (e.g. America/Toronto).",
+      "default": "America/Toronto"
+    },
+    "daily_hours": {
+      "type": "number",
+      "title": "Default daily hours",
+      "description": "Expected hours per weekday.",
+      "default": 8
+    },
+    "max_log_days": {
+      "type": "number",
+      "title": "Max days per log_time call",
+      "description": "Safety cap on how many days a single log_time call may write.",
+      "default": 31
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "python": ">=3.11" }
+  }
+}

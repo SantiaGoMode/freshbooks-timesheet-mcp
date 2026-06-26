@@ -47,8 +47,9 @@ class AuthManager:
             tokens = self._cache or self._store.load()
             if tokens is None:
                 raise AuthError(
-                    "No stored credentials. Run the auth bootstrap first: "
-                    "`freshbooks-mcp-auth`."
+                    "No stored credentials. Authorize first by calling the "
+                    "`start_auth` tool (or run `freshbooks-mcp-auth` in a "
+                    "terminal)."
                 )
             if tokens.is_expired():
                 tokens = self._refresh_locked(tokens)
@@ -70,6 +71,13 @@ class AuthManager:
         with self._lock:
             self._store.clear()
             self._cache = None
+
+    def has_stored_tokens(self) -> bool:
+        """True if a token set is cached or persisted (for diagnostics)."""
+        try:
+            return (self._cache or self._store.load()) is not None
+        except Exception:
+            return False
 
     def authorize_url(self) -> tuple[str, str]:
         """Return (url, state) to start the OAuth authorization-code flow."""
@@ -129,7 +137,19 @@ class AuthManager:
             if err in {"invalid_grant", "unauthorized"}:
                 raise AuthError(
                     "Refresh token is no longer valid (rotated or revoked). "
-                    "Re-run the auth bootstrap: `freshbooks-mcp-auth`."
+                    "Re-authorize by calling the `start_auth` tool (or run "
+                    "`freshbooks-mcp-auth` in a terminal)."
+                )
+            if err == "invalid_client":
+                raise AuthError(
+                    "FreshBooks rejected the app credentials (invalid_client) — "
+                    "this is the client_id/client_secret, not the code. The "
+                    f"server received a client_id of length "
+                    f"{len(self._config.client_id)} and a client_secret of "
+                    f"length {len(self._config.client_secret)}. If either is 0, "
+                    "the connector isn't passing it; otherwise re-copy both from "
+                    "my.freshbooks.com → Developer → your app (no trailing "
+                    "spaces) and confirm the app still exists."
                 )
             raise AuthError(f"Token endpoint returned {resp.status_code}: {err}")
 

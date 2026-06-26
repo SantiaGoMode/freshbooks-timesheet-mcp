@@ -15,6 +15,7 @@ import httpx
 from .auth_manager import AuthManager
 from .config import API_BASE, ME_URL, Config
 from .models import Project, TimeEntry
+from .transformers import to_utc_z
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +161,7 @@ class FreshBooksClient:
             "is_logged": True,
             "duration": int(duration_seconds),
             "note": note,
-            "started_at": _to_utc_z(started_at),
+            "started_at": to_utc_z(started_at),
             "identity_id": identity_id or self.identity_id,
             "project_id": project_id,
             "billable": billable,
@@ -208,16 +209,6 @@ class FreshBooksClient:
         url = f"{API_BASE}/comments/business/{self.business_id}/services"
         data = self._request("GET", url, params={"per_page": 100})
         return data.get("services", [])
-
-
-def _to_utc_z(dt: datetime) -> str:
-    """Format a datetime as FreshBooks UTC '...000Z' string."""
-    from datetime import timezone
-
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    dt = dt.astimezone(timezone.utc)
-    return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
 def _error_message(resp: httpx.Response) -> str:

@@ -1,6 +1,6 @@
 [project]
 name = "freshbooks-timesheet-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server to check and log timesheets in FreshBooks"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -17,6 +17,7 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "respx>=0.21.0",
+    "ruff>=0.6.0",
 ]
 
 [project.scripts]
@@ -34,3 +35,14 @@ packages = ["freshbooks_mcp"]
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 90
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# tests: long assert lines and a deliberate blind-exception assert are fine
+"tests/*" = ["E501", "B017"]

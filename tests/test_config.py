@@ -9,6 +9,14 @@ def test_value_from_env(monkeypatch):
     assert _file_or_env("FRESHBOOKS_CLIENT_ID") == "env-id"
 
 
+def test_env_value_is_stripped(monkeypatch):
+    # A trailing newline (common when pasting a secret into the extension's
+    # sensitive config) must be stripped, or FreshBooks returns invalid_client.
+    monkeypatch.delenv("FRESHBOOKS_CLIENT_SECRET_FILE", raising=False)
+    monkeypatch.setenv("FRESHBOOKS_CLIENT_SECRET", "  secret\n")
+    assert _file_or_env("FRESHBOOKS_CLIENT_SECRET") == "secret"
+
+
 def test_value_default_when_unset(monkeypatch):
     monkeypatch.delenv("FRESHBOOKS_CLIENT_ID_FILE", raising=False)
     monkeypatch.delenv("FRESHBOOKS_CLIENT_ID", raising=False)

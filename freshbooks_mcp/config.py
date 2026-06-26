@@ -47,7 +47,10 @@ def _file_or_env(name: str, default: str = "") -> str:
     path = os.getenv(f"{name}_FILE")
     if path:
         return Path(path).expanduser().read_text().strip()
-    return os.getenv(name, default)
+    # Strip here too: credentials injected as env vars (e.g. by the Claude
+    # Desktop extension's sensitive config) often carry a trailing newline from
+    # a copy-paste, and FreshBooks rejects `secret\n` with `invalid_client`.
+    return os.getenv(name, default).strip()
 
 
 @dataclass
@@ -66,13 +69,13 @@ class Config:
     max_log_days: int
 
     @classmethod
-    def load(cls) -> "Config":
+    def load(cls) -> Config:
         return cls(
             client_id=_file_or_env("FRESHBOOKS_CLIENT_ID"),
             client_secret=_file_or_env("FRESHBOOKS_CLIENT_SECRET"),
             redirect_uri=os.getenv(
                 "FRESHBOOKS_REDIRECT_URI", "https://localhost/callback"
-            ),
+            ).strip(),
             business_id=_get_opt_int("FRESHBOOKS_BUSINESS_ID"),
             identity_id=_get_opt_int("FRESHBOOKS_IDENTITY_ID"),
             token_backend=os.getenv("FRESHBOOKS_TOKEN_BACKEND", "keyring").lower(),

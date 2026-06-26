@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import calendar
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from .models import TimeEntry
@@ -149,8 +149,15 @@ def local_datetime(d: date, start_time: str, tz: str) -> datetime:
     return datetime.combine(d, time(hh, mm), tzinfo=_zone(tz))
 
 
-def _to_utc_z(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+def to_utc_z(dt: datetime) -> str:
+    """Format a datetime as a FreshBooks UTC '...000Z' string.
+
+    A naive datetime is assumed to already be UTC (not local), matching the
+    API's expectation; tz-aware datetimes are converted.
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
 def utc_bounds(start: date, end: date, tz: str) -> tuple[str, str]:
@@ -158,4 +165,4 @@ def utc_bounds(start: date, end: date, tz: str) -> tuple[str, str]:
     z = _zone(tz)
     start_local = datetime.combine(start, time(0, 0, 0), tzinfo=z)
     end_local = datetime.combine(end, time(23, 59, 59), tzinfo=z)
-    return _to_utc_z(start_local), _to_utc_z(end_local)
+    return to_utc_z(start_local), to_utc_z(end_local)

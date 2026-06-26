@@ -10,9 +10,10 @@ writes the entries. Or *"which days am I missing this month?"* — it reports th
 gaps, never flagging days that haven't happened yet.
 
 > **👉 Setting it up? See [GETTING_STARTED.md](GETTING_STARTED.md)** — a
-> ~10-minute step-by-step guide (creating the FreshBooks app, secrets, Docker,
-> first auth, registering with your agent). This README is the reference for the
-> app itself: tools, config, and internals.
+> ~10-minute guide. The recommended path is the one-click **Claude Desktop
+> extension** (`.mcpb`); Docker and local Python are covered as alternatives.
+> Build/dev details for the bundle live in [extension/](extension/README.md).
+> This README is the reference for the app itself: tools, config, and internals.
 
 ---
 

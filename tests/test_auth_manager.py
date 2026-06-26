@@ -8,8 +8,8 @@ from freshbooks_mcp.config import Config
 from freshbooks_mcp.models import TokenSet
 
 
-def make_config():
-    return Config(
+def make_config(**over):
+    base = dict(
         client_id="cid",
         client_secret="csecret",
         redirect_uri="https://localhost/callback",
@@ -23,6 +23,8 @@ def make_config():
         default_start_time="09:00",
         max_log_days=31,
     )
+    base.update(over)
+    return Config(**base)
 
 
 class MemoryStore:
@@ -92,7 +94,7 @@ def test_invalid_grant_raises_autherror():
     auth = AuthManager(make_config(), store, client_returning(handler))
     with pytest.raises(AuthError) as exc:
         auth.get_access_token()
-    assert "bootstrap" in str(exc.value).lower()
+    assert "start_auth" in str(exc.value).lower()
 
 
 def test_no_tokens_raises():

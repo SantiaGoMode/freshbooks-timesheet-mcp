@@ -25,8 +25,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from freshbooks_mcp.auth_manager import AuthError, AuthManager  # noqa: E402
 from freshbooks_mcp.config import Config  # noqa: E402
-from freshbooks_mcp.freshbooks_client import FreshBooksClient, FreshBooksError  # noqa: E402
-from freshbooks_mcp.server import handle_check_timesheet, handle_list_projects  # noqa: E402
+from freshbooks_mcp.freshbooks_client import (  # noqa: E402
+    FreshBooksClient,
+    FreshBooksError,
+)
+from freshbooks_mcp.server import (  # noqa: E402
+    handle_check_timesheet,
+    handle_list_projects,
+)
 
 
 def _section(title: str) -> None:
@@ -56,7 +62,10 @@ def main() -> int:
         memberships = me.get("business_memberships") or []
         if memberships:
             biz = memberships[0].get("business", {})
-            print(f"  business    : {biz.get('name')} (account_id={biz.get('account_id')})")
+            print(
+                f"  business    : {biz.get('name')} "
+                f"(account_id={biz.get('account_id')})"
+            )
 
         _section("2. Projects")
         projects = handle_list_projects(client)["projects"]

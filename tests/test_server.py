@@ -5,9 +5,13 @@ import pytest
 from freshbooks_mcp.config import Config
 from freshbooks_mcp.models import Project, TimeEntry
 from freshbooks_mcp.server import (
+    build_server,
+    handle_auth_debug,
     handle_check_timesheet,
+    handle_finish_auth,
     handle_list_projects,
     handle_log_time,
+    handle_start_auth,
 )
 
 
@@ -44,9 +48,77 @@ class FakeClient:
         return self._projects
 
 
+class FakeAuth:
+    def __init__(self, stored=False):
+        self._stored = stored
+        self.bootstrapped = []
+
+    def authorize_url(self):
+        return (
+            "https://auth.freshbooks.com/oauth/authorize?client_id=cid&state=ST",
+            "ST",
+        )
+
+    def bootstrap_from_code(self, code):
+        self.bootstrapped.append(code)
+
+    def has_stored_tokens(self):
+        return self._stored
+
+
 def _entry(d: date, hours: float):
     return TimeEntry(None, datetime(d.year, d.month, d.day, 9), int(hours * 3600),
                      None, 555)
+
+
+# --- auth tool layer ---------------------------------------------------------
+
+def test_start_auth_returns_url():
+    out = handle_start_auth(FakeAuth(), make_config())
+    assert "auth.freshbooks.com" in out["authorize_url"]
+    assert out["state"] == "ST"
+
+
+def test_start_auth_requires_credentials():
+    with pytest.raises(ValueError):
+        handle_start_auth(FakeAuth(), make_config(client_id="", client_secret=""))
+
+
+def test_finish_auth_strips_and_exchanges_code():
+    auth = FakeAuth()
+    out = handle_finish_auth(auth, make_config(), "  thecode\n")
+    assert out["status"] == "ok"
+    assert auth.bootstrapped == ["thecode"]  # whitespace stripped
+
+
+def test_finish_auth_rejects_empty_code():
+    with pytest.raises(ValueError):
+        handle_finish_auth(FakeAuth(), make_config(), "   ")
+
+
+def test_auth_debug_fingerprints_without_leaking_secrets():
+    out = handle_auth_debug(FakeAuth(stored=True), make_config())
+    assert out["client_id_len"] == 3
+    assert out["client_secret_len"] == len("csecret")
+    assert out["client_secret_fp"] not in ("csecret", "<empty>")
+    assert out["token_stored"] is True
+    assert "csecret" not in str(out)  # never echo the raw secret
+
+
+def test_auth_debug_flags_empty_secret():
+    out = handle_auth_debug(FakeAuth(), make_config(client_secret=""))
+    assert out["client_secret_len"] == 0
+    assert out["client_secret_fp"] == "<empty>"
+    assert out["token_stored"] is False
+
+
+async def test_build_server_registers_all_tools():
+    mcp = build_server(make_config(), FakeClient(), FakeAuth())
+    names = {t.name for t in await mcp.list_tools()}
+    assert {
+        "start_auth", "finish_auth", "auth_debug", "check_timesheet",
+        "log_time", "list_projects", "list_clients", "list_services",
+    } <= names
 
 
 # --- check_timesheet ---------------------------------------------------------

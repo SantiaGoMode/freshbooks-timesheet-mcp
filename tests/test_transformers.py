@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -119,7 +119,7 @@ def test_report_future_days_not_missing():
 def test_local_datetime_and_utc_bounds():
     dt = local_datetime(date(2026, 6, 24), "09:00", "America/Toronto")
     # Toronto is UTC-4 in June (EDT) -> 09:00 local == 13:00 UTC
-    assert dt.astimezone(timezone.utc).hour == 13
+    assert dt.astimezone(UTC).hour == 13
 
     frm, to = utc_bounds(date(2026, 6, 24), date(2026, 6, 24), "America/Toronto")
     assert frm == "2026-06-24T04:00:00.000Z"   # 00:00 EDT
