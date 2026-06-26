@@ -20,14 +20,20 @@ credentials.
 2. **Create an App** — name it e.g. `Timesheet MCP`.
 3. Set the **Redirect URI** to exactly `https://localhost/callback` (FreshBooks
    requires HTTPS; it must match character-for-character).
-4. Add these **scopes**:
+4. Add these **scopes** (each line maps to the tools that need it):
    ```
    user:profile:read         # identity / business discovery (/me)
-   user:time_entries:read    # check_timesheet
-   user:time_entries:write   # log_time
+   user:time_entries:read    # check_timesheet, list_time_entries
+   user:time_entries:write   # log_time, update_time_entry
    user:projects:read        # list_projects
-   user:billable_items:read  # list_clients / list_services
+   user:clients:read         # list_clients
+   user:billable_items:read  # list_services
    ```
+   > Changing scopes on an existing app does **not** update tokens you've already
+   > issued — after editing scopes you must **re-authorize** (re-run
+   > `start_auth`/`finish_auth`, or `freshbooks-mcp-auth`) to get a token with the
+   > new scopes. A missing scope shows up as `403 insufficient_scope` on the
+   > specific tool that needs it.
 5. Save, then copy the **Client ID** and **Client Secret**.
 
 > The credentials identify the *app*, not a person — a team can share one app's
@@ -185,6 +191,7 @@ Register with your MCP client (use the platform's script path):
 | **Extension won't start / `uv` not found** | Install `uv` system-wide (Step 2a — macOS `brew install uv`, Windows `winget install --id=astral-sh.uv -e`) and restart Claude Desktop. |
 | `invalid_client` during auth | Client ID/Secret don't match a live app (or have stray whitespace). Ask the agent to run **`auth_debug`** — it fingerprints the loaded credentials (no secrets) so you can confirm them. Re-enter in the connector config if wrong. |
 | `invalid_grant` during auth | The code expired or was reused. Run `start_auth` again and paste a fresh code quickly. |
+| `403 insufficient_scope` on a tool | The app is missing that tool's scope (e.g. `list_clients` needs `user:clients:read`, `list_services` needs `user:billable_items:read`). Add it in Step 1, then **re-authorize** — existing tokens don't gain new scopes. `python scripts/smoke.py` checks every read tool and names any missing scope. |
 | Redirect rejected / "redirect_uri mismatch" | The app's Redirect URI must exactly equal the connector's (`https://localhost/callback`). Fix it in the Developer Portal. |
 | **Stale auth / want to reset** | Re-running `start_auth` → `finish_auth` overwrites the stored token. To fully clear it: macOS — Keychain Access, delete `freshbooks-timesheet-mcp`; Windows — Credential Manager → Windows Credentials → remove `freshbooks-timesheet-mcp` (or `cmdkey /delete:freshbooks-timesheet-mcp`). |
 | `check_timesheet` shows everything missing | You haven't logged yet, or the timezone is wrong. Set **Timezone** (extension) or `TZ` (Docker/local). |

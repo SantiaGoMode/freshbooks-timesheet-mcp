@@ -31,7 +31,10 @@ from freshbooks_mcp.freshbooks_client import (  # noqa: E402
 )
 from freshbooks_mcp.server import (  # noqa: E402
     handle_check_timesheet,
+    handle_list_clients,
     handle_list_projects,
+    handle_list_services,
+    handle_list_time_entries,
 )
 
 
@@ -81,6 +84,42 @@ def main() -> int:
         print("  " + report["summary"])
         print(json.dumps(report["days"], indent=2))
 
+        _section("4. list_time_entries (this week)")
+        entries = handle_list_time_entries(
+            client, config, "week", date_str=args.date
+        )["entries"]
+        print(f"  {len(entries)} entry(ies)")
+        for e in entries[:10]:
+            print(
+                f"  id {e['id']}  {e['date']}  {e['hours']}h  "
+                f"project {e['project_id']}"
+            )
+
+        # Per-tool scope checks — a missing scope only 403s on its own endpoint,
+        # so every read tool must be exercised individually (this is the gap that
+        # let list_clients/list_services scope errors slip through before).
+        scope_gaps = []
+
+        _section("5. list_clients")
+        try:
+            clients = handle_list_clients(client)["clients"]
+            print(f"  {len(clients)} client(s)")
+        except FreshBooksError as exc:
+            if exc.status != 403:
+                raise
+            scope_gaps.append(("list_clients", "user:clients:read"))
+            print("  ⚠ 403 — token is missing scope `user:clients:read`")
+
+        _section("6. list_services")
+        try:
+            services = handle_list_services(client)["services"]
+            print(f"  {len(services)} service(s)")
+        except FreshBooksError as exc:
+            if exc.status != 403:
+                raise
+            scope_gaps.append(("list_services", "user:billable_items:read"))
+            print("  ⚠ 403 — token is missing scope `user:billable_items:read`")
+
     except AuthError as exc:
         print(f"\n✗ Auth error: {exc}")
         return 3
@@ -88,7 +127,16 @@ def main() -> int:
         print(f"\n✗ API error (status={exc.status}): {exc}")
         return 4
 
-    print("\n✅ Smoke test passed — auth and read endpoints work. No data written.")
+    if scope_gaps:
+        _section("Result")
+        print("✗ Some read tools are missing OAuth scopes:")
+        for tool, scope in scope_gaps:
+            print(f"   - {tool} needs `{scope}`")
+        print("\nAdd the scope(s) to your FreshBooks app, then RE-AUTHORIZE —")
+        print("scopes don't apply to existing tokens (see GETTING_STARTED Step 1).")
+        return 5
+
+    print("\n✅ Smoke test passed — all read tools work. No data written.")
     return 0
 
 
