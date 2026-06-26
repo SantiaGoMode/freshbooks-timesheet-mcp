@@ -207,4 +207,4 @@ tests/            unit tests for every module
 
 ## License
 
-Internal / unlicensed. Add a license before distributing.
+MIT © 2026 Cristino Santiago. See [LICENSE](LICENSE).
