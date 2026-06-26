@@ -174,6 +174,59 @@ class FreshBooksClient:
         data = self._request("POST", url, json={"time_entry": entry})
         return TimeEntry.from_api(data.get("time_entry", data))
 
+    def update_time_entry(
+        self,
+        entry_id: int,
+        *,
+        project_id: int | None = None,
+        note: str | None = None,
+        duration_seconds: int | None = None,
+        client_id: int | None = None,
+        service_id: int | None = None,
+        billable: bool | None = None,
+    ) -> TimeEntry:
+        """Update fields on an existing time entry.
+
+        FreshBooks validates the *whole* entry on PUT (``started_at`` and
+        ``is_logged`` are required), so this fetches the current entry, merges
+        the requested changes, and writes the full object back — preserving
+        fields the caller didn't touch.
+        """
+        if all(
+            v is None for v in
+            (project_id, note, duration_seconds, client_id, service_id, billable)
+        ):
+            raise FreshBooksError("No fields provided to update.")
+        url = (
+            f"{API_BASE}/timetracking/business/{self.business_id}"
+            f"/time_entries/{entry_id}"
+        )
+        existing = self._request("GET", url).get("time_entry") or {}
+        if not existing:
+            raise FreshBooksError(f"Time entry {entry_id} not found.", 404)
+
+        def pick(new, key, default=None):
+            return new if new is not None else existing.get(key, default)
+
+        merged: dict = {
+            "started_at": existing.get("started_at"),
+            "is_logged": existing.get("is_logged", True),
+            "duration": int(duration_seconds) if duration_seconds is not None
+            else existing.get("duration"),
+            "project_id": pick(project_id, "project_id"),
+            "note": pick(note, "note"),
+            "billable": pick(billable, "billable", False),
+        }
+        cid = pick(client_id, "client_id")
+        if cid is not None:
+            merged["client_id"] = cid
+        sid = pick(service_id, "service_id")
+        if sid is not None:
+            merged["service_id"] = sid
+
+        data = self._request("PUT", url, json={"time_entry": merged})
+        return TimeEntry.from_api(data.get("time_entry", data))
+
     # -- projects / clients / services ---------------------------------------
 
     def list_projects(self, active_only: bool = True) -> list[Project]:
@@ -220,7 +273,12 @@ def _error_message(resp: httpx.Response) -> str:
     if isinstance(data, dict):
         if "message" in data:
             return f"{resp.status_code}: {data['message']}"
-        errors = data.get("response", {}).get("errors") or data.get("errors")
+        # FreshBooks timetracking validation errors: {"errno":..,"error":{...}}
+        if data.get("error"):
+            return f"{resp.status_code}: {data['error']}"
+        resp_field = data.get("response")
+        errors = (resp_field.get("errors") if isinstance(resp_field, dict) else None) \
+            or data.get("errors")
         if errors:
             return f"{resp.status_code}: {errors}"
     return f"HTTP {resp.status_code}"

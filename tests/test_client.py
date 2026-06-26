@@ -168,6 +168,46 @@ def test_create_time_entry_body():
     assert entry.id == 42
 
 
+def test_update_time_entry_fetches_then_puts_full_object():
+    # FreshBooks requires started_at + is_logged on PUT, so update must GET the
+    # existing entry, merge the change, and write the whole object back.
+    import json as _json
+    captured = {}
+    EXISTING = {
+        "id": 42, "started_at": "2026-06-01T13:00:00.000Z", "is_logged": True,
+        "duration": 28800, "identity_id": 555, "project_id": 7, "note": "old",
+        "billable": False,
+    }
+
+    def handler(request):
+        if request.method == "GET":
+            assert request.url.path.endswith("/time_entries/42")
+            return httpx.Response(200, json={"time_entry": EXISTING})
+        captured["body"] = _json.loads(request.content)["time_entry"]
+        return httpx.Response(200, json={"time_entry": {**EXISTING, "project_id": 99,
+                                                        "note": "moved"}})
+
+    client, _ = make_client(handler, business_id=999, identity_id=555)
+    entry = client.update_time_entry(42, project_id=99, note="moved")
+
+    te = captured["body"]
+    assert te["project_id"] == 99                       # changed
+    assert te["note"] == "moved"                        # changed
+    assert te["started_at"] == "2026-06-01T13:00:00.000Z"  # required, carried over
+    assert te["is_logged"] is True                      # required, carried over
+    assert te["duration"] == 28800                      # untouched field preserved
+    assert entry.project_id == 99
+
+
+def test_update_time_entry_requires_fields():
+    def handler(request):  # should never be hit — guard runs before any request
+        raise AssertionError("no request expected when nothing to update")
+
+    client, _ = make_client(handler, business_id=999, identity_id=555)
+    with pytest.raises(FreshBooksError):
+        client.update_time_entry(42)
+
+
 def test_list_projects_filters_inactive():
     def handler(request):
         return httpx.Response(200, json={

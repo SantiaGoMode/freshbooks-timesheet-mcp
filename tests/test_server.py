@@ -33,6 +33,7 @@ class FakeClient:
         self._entries = entries or []
         self._projects = projects or []
         self.created = []
+        self.updated = []
         self.identity_id = 555
 
     def list_time_entries(self, frm, to, identity_id=None):
@@ -43,6 +44,12 @@ class FakeClient:
                       555, project_id=kw.get("project_id"))
         self.created.append((started, duration, kw))
         return e
+
+    def update_time_entry(self, entry_id, **kw):
+        self.updated.append((entry_id, kw))
+        dur = kw.get("duration_seconds") or 28800
+        return TimeEntry(entry_id, datetime(2026, 6, 22, 9, 0), int(dur),
+                         kw.get("note"), 555, project_id=kw.get("project_id"))
 
     def list_projects(self, active_only=True):
         return self._projects
@@ -117,7 +124,8 @@ async def test_build_server_registers_all_tools():
     names = {t.name for t in await mcp.list_tools()}
     assert {
         "start_auth", "finish_auth", "auth_debug", "check_timesheet",
-        "log_time", "list_projects", "list_clients", "list_services",
+        "log_time", "list_time_entries", "update_time_entry",
+        "list_projects", "list_clients", "list_services",
     } <= names
 
 
@@ -217,6 +225,43 @@ def test_log_time_duration_and_start_time():
     assert duration == 28800  # 8h
     # 09:00 Toronto EDT == 13:00 UTC
     assert started.astimezone().tzinfo is not None
+
+
+# --- list_time_entries / update_time_entry -----------------------------------
+
+def test_list_time_entries_exposes_ids():
+    from freshbooks_mcp.server import handle_list_time_entries
+    entries = [
+        TimeEntry(101, datetime(2026, 6, 22, 9), 28800, "a", 555, project_id=7),
+        TimeEntry(102, datetime(2026, 6, 23, 9), 14400, "b", 555, project_id=8),
+    ]
+    client = FakeClient(entries=entries)
+    result = handle_list_time_entries(client, make_config(), "week",
+                                      date_str="2026-06-24")
+    ids = [e["id"] for e in result["entries"]]
+    assert ids == [101, 102]
+    assert result["entries"][0]["project_id"] == 7
+    assert result["entries"][1]["hours"] == 4.0
+
+
+def test_update_time_entry_changes_project():
+    from freshbooks_mcp.server import handle_update_time_entry
+    client = FakeClient()
+    result = handle_update_time_entry(client, make_config(), 101, project_id=99)
+    assert client.updated == [(101, {"project_id": 99, "note": None,
+                                     "duration_seconds": None})]
+    assert result["updated"]["project_id"] == 99
+    assert "project_id" in result["summary"]
+
+
+def test_update_time_entry_requires_id_and_a_field():
+    from freshbooks_mcp.server import handle_update_time_entry
+    client = FakeClient()
+    with pytest.raises(ValueError):  # no fields to change
+        handle_update_time_entry(client, make_config(), 101)
+    with pytest.raises(ValueError):  # bad hours
+        handle_update_time_entry(client, make_config(), 101, hours=25)
+    assert client.updated == []  # nothing written on validation failure
 
 
 # --- list_projects -----------------------------------------------------------

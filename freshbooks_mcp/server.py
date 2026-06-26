@@ -205,6 +205,76 @@ def handle_log_time(
     }
 
 
+def handle_list_time_entries(
+    client: FreshBooksClient,
+    config: Config,
+    period: str,
+    date_str: str | None = None,
+) -> dict:
+    """List individual entries (with ids) for a day/week/month, for editing."""
+    anchor = _parse_date(date_str, config)
+    start, end = T.resolve_range(period, anchor)
+    frm, to = T.utc_bounds(start, end, config.timezone)
+    zone = ZoneInfo(config.timezone)
+    items = []
+    for e in client.list_time_entries(frm, to):
+        dt = e.started_at
+        local = dt.astimezone(zone).date() if dt.tzinfo else dt.date()
+        items.append({
+            "id": e.id,
+            "date": local.isoformat(),
+            "hours": e.hours,
+            "project_id": e.project_id,
+            "note": e.note,
+            "billable": e.billable,
+        })
+    items.sort(key=lambda x: (x["date"], x["id"] or 0))
+    return {"entries": items}
+
+
+def handle_update_time_entry(
+    client: FreshBooksClient,
+    config: Config,
+    entry_id: int,
+    project_id: int | None = None,
+    note: str | None = None,
+    hours: float | None = None,
+) -> dict:
+    """Edit an existing time entry (project, note, and/or hours)."""
+    if entry_id is None:
+        raise ValueError(
+            "entry_id is required. Call list_time_entries to find the entry."
+        )
+    duration = None
+    if hours is not None:
+        if hours <= 0 or hours > MAX_HOURS_PER_DAY:
+            raise ValueError(f"hours must be between 0 and {MAX_HOURS_PER_DAY}.")
+        duration = T.hours_to_seconds(hours)
+    if project_id is None and note is None and duration is None:
+        raise ValueError(
+            "Provide at least one field to change (project_id, note, or hours)."
+        )
+
+    entry = client.update_time_entry(
+        entry_id, project_id=project_id, note=note, duration_seconds=duration
+    )
+    changed = [
+        name for name, val in
+        (("project_id", project_id), ("note", note), ("hours", hours))
+        if val is not None
+    ]
+    return {
+        "updated": {
+            "id": entry.id,
+            "date": entry.local_date.isoformat(),
+            "hours": entry.hours,
+            "project_id": entry.project_id,
+            "note": entry.note,
+        },
+        "summary": f"Updated entry {entry_id} ({', '.join(changed)}).",
+    }
+
+
 def handle_list_projects(
     client: FreshBooksClient, active_only: bool = True, query: str | None = None
 ) -> dict:
@@ -336,6 +406,32 @@ def build_server(config: Config, client: FreshBooksClient, auth):
             client, config, period, hours, project_id, date, off_days, note,
             billable, client_id, service_id, skip_existing, dry_run,
         )
+
+    @mcp.tool()
+    def list_time_entries(period: str, date: str | None = None) -> dict:
+        """List individual time entries with their ids for a day/week/month.
+
+        period: "day" | "week" | "month". date: anchor YYYY-MM-DD (default today).
+        Use this to find the `id` of an entry before editing it with
+        update_time_entry (e.g. to move it to a different project).
+        """
+        return handle_list_time_entries(client, config, period, date)
+
+    @mcp.tool()
+    def update_time_entry(
+        entry_id: int,
+        project_id: int | None = None,
+        note: str | None = None,
+        hours: float | None = None,
+    ) -> dict:
+        """Edit an existing time entry — e.g. move it to a different project.
+
+        Find `entry_id` via list_time_entries. Provide at least one of
+        project_id (reassign the project), note, or hours. Only the fields you
+        pass are changed. If reassigning the project, confirm the target with
+        list_projects first.
+        """
+        return handle_update_time_entry(client, config, entry_id, project_id, note, hours)
 
     @mcp.tool()
     def list_projects(active_only: bool = True, query: str | None = None) -> dict:

@@ -23,6 +23,8 @@ gaps, never flagging days that haven't happened yet.
   day, week, or month (Mon–Fri). Future weekdays are never flagged as missing.
 - **`log_time`** — log X hours per weekday against a project, with PTO/off-day
   exclusion, a dry-run preview, and automatic skipping of days already logged.
+- **`list_time_entries` / `update_time_entry`** — list entries with their ids,
+  then edit one (e.g. reassign it to a different project, or fix its note/hours).
 - **`list_projects` / `list_clients` / `list_services`** — discovery so the
   agent can ask which project to log against before writing anything.
 - **Secure auth** — OAuth2 with automatic access-token refresh and correct
@@ -123,6 +125,17 @@ Log `hours` per weekday (M–F) for the period against a project.
 
 Weekends are always excluded. `hours` must be `0 < hours ≤ 24`. A single call
 may not exceed `MAX_LOG_DAYS`.
+
+### `list_time_entries(period, date?)`
+List individual entries (with `id`, `date`, `hours`, `project_id`, `note`,
+`billable`) for a `"day"` / `"week"` / `"month"`. Use it to find the `id` of an
+entry to edit.
+
+### `update_time_entry(entry_id, project_id?, note?, hours?)`
+Edit an existing entry — e.g. **move it to a different project**. Look up
+`entry_id` via `list_time_entries`. Provide at least one of `project_id`, `note`,
+or `hours`; only the fields you pass are changed. `hours` (if given) must be
+`0 < hours ≤ 24`.
 
 ### `list_projects(active_only?, query?)` · `list_clients()` · `list_services()`
 Discovery tools. The agent calls `list_projects` and asks which project to use
