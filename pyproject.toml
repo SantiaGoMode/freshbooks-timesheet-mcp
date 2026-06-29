@@ -1,6 +1,6 @@
 [project]
 name = "freshbooks-timesheet-mcp"
-version = "0.1.4"
+version = "0.1.5"
 description = "MCP server to check and log timesheets in FreshBooks"
 readme = "README.md"
 license = "MIT"
@@ -12,6 +12,9 @@ dependencies = [
     "keyring>=25.0.0",
     "cryptography>=42.0.0",
     "python-dotenv>=1.0.0",
+    # Bundles the IANA tz database so zoneinfo resolves keys like
+    # "America/Chicago" on systems without one (Windows, slim containers).
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]
