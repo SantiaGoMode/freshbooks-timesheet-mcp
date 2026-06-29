@@ -225,6 +225,7 @@ def handle_list_time_entries(
             "date": local.isoformat(),
             "hours": e.hours,
             "project_id": e.project_id,
+            "client_id": e.client_id,
             "note": e.note,
             "billable": e.billable,
         })

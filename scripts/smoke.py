@@ -35,6 +35,7 @@ from freshbooks_mcp.server import (  # noqa: E402
     handle_list_projects,
     handle_list_services,
     handle_list_time_entries,
+    handle_update_time_entry,
 )
 
 
@@ -45,6 +46,12 @@ def _section(title: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", help="anchor date YYYY-MM-DD (default: today)")
+    parser.add_argument(
+        "--write-test",
+        action="store_true",
+        help="also run a REVERSIBLE write round-trip (flip an entry's billable "
+        "flag and flip it back) to verify update_time_entry live",
+    )
     args = parser.parse_args()
 
     config = Config.load()
@@ -120,6 +127,34 @@ def main() -> int:
             scope_gaps.append(("list_services", "user:billable_items:read"))
             print("  ⚠ 403 — token is missing scope `user:billable_items:read`")
 
+        if args.write_test:
+            _section("7. update_time_entry (REVERSIBLE write round-trip)")
+            entries = handle_list_time_entries(
+                client, config, "week", date_str=args.date
+            )["entries"]
+            if not entries:
+                print("  (no entries this week to test against — skipped)")
+            else:
+                e = entries[0]
+                eid, original = e["id"], bool(e["billable"])
+                print(f"  target id {eid} (billable={original})")
+                # flip it
+                flipped = handle_update_time_entry(
+                    client, config, eid, billable=not original,
+                    client_id=e.get("client_id"),
+                )["updated"]["billable"]
+                print(f"  flipped -> billable={flipped}")
+                # restore it
+                restored = handle_update_time_entry(
+                    client, config, eid, billable=original,
+                    client_id=e.get("client_id"),
+                )["updated"]["billable"]
+                print(f"  restored -> billable={restored}")
+                if flipped != (not original) or restored != original:
+                    print("  ✗ write round-trip did not behave as expected")
+                    return 6
+                print("  ✓ update_time_entry write verified and reverted")
+
     except AuthError as exc:
         print(f"\n✗ Auth error: {exc}")
         return 3
@@ -136,7 +171,10 @@ def main() -> int:
         print("scopes don't apply to existing tokens (see GETTING_STARTED Step 1).")
         return 5
 
-    print("\n✅ Smoke test passed — all read tools work. No data written.")
+    if args.write_test:
+        print("\n✅ Smoke test passed — all tools work; write round-trip reverted.")
+    else:
+        print("\n✅ Smoke test passed — all read tools work. No data written.")
     return 0
 
 
