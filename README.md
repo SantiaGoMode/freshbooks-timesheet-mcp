@@ -131,11 +131,13 @@ List individual entries (with `id`, `date`, `hours`, `project_id`, `note`,
 `billable`) for a `"day"` / `"week"` / `"month"`. Use it to find the `id` of an
 entry to edit.
 
-### `update_time_entry(entry_id, project_id?, note?, hours?)`
-Edit an existing entry — e.g. **move it to a different project**. Look up
-`entry_id` via `list_time_entries`. Provide at least one of `project_id`, `note`,
-or `hours`; only the fields you pass are changed. `hours` (if given) must be
-`0 < hours ≤ 24`.
+### `update_time_entry(entry_id, project_id?, note?, hours?, billable?, client_id?)`
+Edit an existing entry — e.g. **move it to a different project** or **flip the
+billable flag**. Look up `entry_id` via `list_time_entries`. Provide at least one
+of `project_id`, `note`, `hours`, `billable`, or `client_id`; only the fields you
+pass are changed (others are preserved). `hours` (if given) must be
+`0 < hours ≤ 24`. Setting `billable=true` may require the entry to have a
+`client_id` — pass one if FreshBooks rejects the change.
 
 ### `list_projects(active_only?, query?)` · `list_clients()` · `list_services()`
 Discovery tools. The agent calls `list_projects` and asks which project to use

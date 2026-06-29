@@ -239,8 +239,10 @@ def handle_update_time_entry(
     project_id: int | None = None,
     note: str | None = None,
     hours: float | None = None,
+    billable: bool | None = None,
+    client_id: int | None = None,
 ) -> dict:
-    """Edit an existing time entry (project, note, and/or hours)."""
+    """Edit an existing time entry (project, note, hours, and/or billable)."""
     if entry_id is None:
         raise ValueError(
             "entry_id is required. Call list_time_entries to find the entry."
@@ -250,17 +252,23 @@ def handle_update_time_entry(
         if hours <= 0 or hours > MAX_HOURS_PER_DAY:
             raise ValueError(f"hours must be between 0 and {MAX_HOURS_PER_DAY}.")
         duration = T.hours_to_seconds(hours)
-    if project_id is None and note is None and duration is None:
+    if (
+        project_id is None and note is None and duration is None
+        and billable is None and client_id is None
+    ):
         raise ValueError(
-            "Provide at least one field to change (project_id, note, or hours)."
+            "Provide at least one field to change "
+            "(project_id, note, hours, billable, or client_id)."
         )
 
     entry = client.update_time_entry(
-        entry_id, project_id=project_id, note=note, duration_seconds=duration
+        entry_id, project_id=project_id, note=note, duration_seconds=duration,
+        billable=billable, client_id=client_id,
     )
     changed = [
         name for name, val in
-        (("project_id", project_id), ("note", note), ("hours", hours))
+        (("project_id", project_id), ("note", note), ("hours", hours),
+         ("billable", billable), ("client_id", client_id))
         if val is not None
     ]
     return {
@@ -270,6 +278,7 @@ def handle_update_time_entry(
             "hours": entry.hours,
             "project_id": entry.project_id,
             "note": entry.note,
+            "billable": entry.billable,
         },
         "summary": f"Updated entry {entry_id} ({', '.join(changed)}).",
     }
@@ -423,15 +432,21 @@ def build_server(config: Config, client: FreshBooksClient, auth):
         project_id: int | None = None,
         note: str | None = None,
         hours: float | None = None,
+        billable: bool | None = None,
+        client_id: int | None = None,
     ) -> dict:
-        """Edit an existing time entry — e.g. move it to a different project.
+        """Edit an existing time entry — e.g. move project or flip billable.
 
         Find `entry_id` via list_time_entries. Provide at least one of
-        project_id (reassign the project), note, or hours. Only the fields you
-        pass are changed. If reassigning the project, confirm the target with
-        list_projects first.
+        project_id (reassign the project), note, hours, billable (true/false to
+        flip the billable flag), or client_id. Only the fields you pass are
+        changed; others are preserved. Setting billable=true may require the
+        entry to have a client_id — pass client_id if FreshBooks rejects it. If
+        reassigning the project, confirm the target with list_projects first.
         """
-        return handle_update_time_entry(client, config, entry_id, project_id, note, hours)
+        return handle_update_time_entry(
+            client, config, entry_id, project_id, note, hours, billable, client_id
+        )
 
     @mcp.tool()
     def list_projects(active_only: bool = True, query: str | None = None) -> dict:

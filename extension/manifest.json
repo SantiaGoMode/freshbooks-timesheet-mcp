@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "freshbooks-timesheet",
   "display_name": "FreshBooks Timesheet",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Check and log timesheets in FreshBooks from your AI agent.",
   "long_description": "Ask your agent to check which days you're missing time on, or to log hours across a week/month against a project — with PTO exclusion, a dry-run preview, and skipping of days already logged. First run: call the start_auth tool, approve in the browser, and paste the code into finish_auth. Credentials are stored by Claude Desktop in the OS keychain; rotating OAuth refresh tokens are handled automatically.",
   "author": { "name": "Cris Santiago" },
@@ -13,7 +13,7 @@
       "command": "uv",
       "args": ["run", "--directory", "${__dirname}/server", "freshbooks-mcp"],
       "env": {
-        "UV_PROJECT_ENVIRONMENT": "${HOME}/.freshbooks-timesheet-mcp/venv-0.1.3",
+        "UV_PROJECT_ENVIRONMENT": "${HOME}/.freshbooks-timesheet-mcp/venv-0.1.4",
         "FRESHBOOKS_CLIENT_ID": "${user_config.client_id}",
         "FRESHBOOKS_CLIENT_SECRET": "${user_config.client_secret}",
         "FRESHBOOKS_REDIRECT_URI": "${user_config.redirect_uri}",
@@ -31,7 +31,7 @@
     { "name": "check_timesheet", "description": "Report logged/missing/under-logged days for a day, week, or month." },
     { "name": "log_time", "description": "Log hours per weekday against a project, with PTO exclusion and dry-run." },
     { "name": "list_time_entries", "description": "List individual time entries with their ids for a day/week/month." },
-    { "name": "update_time_entry", "description": "Edit an entry — e.g. move it to a different project, or change note/hours." },
+    { "name": "update_time_entry", "description": "Edit an entry — move project, flip billable, or change note/hours." },
     { "name": "list_projects", "description": "List projects to choose which to log against." },
     { "name": "list_clients", "description": "List clients (needed for billable time)." },
     { "name": "list_services", "description": "List services (optional billing rate)." }

@@ -49,7 +49,8 @@ class FakeClient:
         self.updated.append((entry_id, kw))
         dur = kw.get("duration_seconds") or 28800
         return TimeEntry(entry_id, datetime(2026, 6, 22, 9, 0), int(dur),
-                         kw.get("note"), 555, project_id=kw.get("project_id"))
+                         kw.get("note"), 555, project_id=kw.get("project_id"),
+                         billable=bool(kw.get("billable")))
 
     def list_projects(self, active_only=True):
         return self._projects
@@ -248,10 +249,23 @@ def test_update_time_entry_changes_project():
     from freshbooks_mcp.server import handle_update_time_entry
     client = FakeClient()
     result = handle_update_time_entry(client, make_config(), 101, project_id=99)
-    assert client.updated == [(101, {"project_id": 99, "note": None,
-                                     "duration_seconds": None})]
+    entry_id, kw = client.updated[0]
+    assert entry_id == 101
+    assert kw["project_id"] == 99
     assert result["updated"]["project_id"] == 99
     assert "project_id" in result["summary"]
+
+
+def test_update_time_entry_flips_billable():
+    from freshbooks_mcp.server import handle_update_time_entry
+    client = FakeClient()
+    result = handle_update_time_entry(client, make_config(), 101, billable=True,
+                                      client_id=543791)
+    entry_id, kw = client.updated[0]
+    assert kw["billable"] is True
+    assert kw["client_id"] == 543791
+    assert result["updated"]["billable"] is True
+    assert "billable" in result["summary"]
 
 
 def test_update_time_entry_requires_id_and_a_field():
